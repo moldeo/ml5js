@@ -18,7 +18,7 @@
       console.log('ml5 version:', ml5.version);
       let mobilenet;
       let mobilenetExt;
-      let model2load = "model.json";
+      let model2load = "modelAO.json";
       let pinguino;
       let width = 640;
       let height = 480;
@@ -33,8 +33,23 @@
       let trainregressionButton;
       let regreButton;
 
-      let saveButton;
-      let loadButton;
+      let startClassifierButton;
+      let saveClassifierButton;
+      let loadClassifierButton;
+
+      let startRegressionButton;
+      let saveRegressionButton;
+      let loadRegressionButton;
+
+      let startKNNButton;
+      let inferKNNButton;
+      let infer2KNNButton;
+      let classifyKNNButton;
+      let features;
+      let knn;
+
+      let saveKNNButton;
+      let loadKNNButton;
 
       function modelReady2Load() {
           console.log("Model ready 2 load:", model2load);
@@ -44,6 +59,7 @@
       function customModelReady() {
           console.log("Custom model ready:",model2load);
           label = "ok"
+          classifier.classify( gotResultsExt)
       }
 
       function whileTraining(loss) {
@@ -86,6 +102,21 @@
           //image( pinguino, 0, 0, width, height)
       }
 
+      function goClassifyKnn() {
+          let logits = features.infer(video, videoReady);
+          //console.log(logits.dataSync());
+          knn.classify(logits, function(error, results ) {
+            if (error) {
+                console.error(error);
+            } else {
+                //console.log(results);
+                label = results.label;
+                label+= "["+results.confidencesByLabel[results.label]+"]";
+                goClassifyKnn();
+            }
+          });
+      }
+
       function gotResults(error, results ) {
         if (error) {
             console.error(error);
@@ -116,7 +147,6 @@
         }
       }
 
-
       function setup(){
         createCanvas(width, height);
         video = createCapture(VIDEO);
@@ -125,9 +155,18 @@
         //pinguino.hide()
         background(0)
         //mobilenet = ml5.imageClassifier("MobileNet", video, modelReady);
-        mobilenetExt = ml5.featureExtractor("MobileNet", modelExtReady);
-        //classifier = mobilenetExt.classification(video, videoReady);
-        regression = mobilenetExt.regression(video, videoReady);
+
+        let divext = document.createElement('div');
+        divext.innerHTML = '<h3>Feature extractor</h3>';
+        document.body.appendChild(divext);
+
+        startClassifierButton = createButton("start");
+        startClassifierButton.mousePressed(function(){
+            label = "Start classifier button";
+            mobilenetExt = ml5.featureExtractor("MobileNet", modelExtReady);
+            classifier = mobilenetExt.classification(video, videoReady);
+        });
+
         labelButton = createButton("add label");
         inputClass = createInput();
         labelButton.mousePressed( function() {
@@ -143,14 +182,36 @@
             classifier.train(whileTraining);
         });
 
+        saveClassifierButton = createButton("save");
+        saveClassifierButton.mousePressed(function(){
+            console.log(regression.save());
+        });
 
+        loadClassifierButton = createButton("load");
+        loadClassifierButton.mousePressed(function(){
+            //regression.save();
+            label = "model loading..."
+            mobilenet = ml5.featureExtractor("MobileNet", modelReady2Load );
+            classifier = mobilenet.classification( video, videoReady );
+        });
+
+        let divreg = document.createElement('div');
+        divreg.innerHTML = '<h3>Regression</h3>';
+        document.body.appendChild(divreg);
+
+        startRegressionButton = createButton("start");
+        startRegressionButton.mousePressed(function(){
+            label = "Start regression button";
+            mobilenetExt = ml5.featureExtractor("MobileNet", modelExtReady);
+            regression = mobilenetExt.regression(video, videoReady);
+        });
         slider = createSlider(0,1,0.5,0.01);
         slider.input(function() {
             console.log(slider.value());
         });
 
         regreButton = createButton("add val");
-        regreButton.mousePressed(function(){
+        regreButton.mousePressed(function() {
             regression.addImage(slider.value());
         })
 
@@ -160,31 +221,91 @@
             regression.train(whileTrainingReg);
         });
 
-        saveButton = createButton("save");
-        saveButton.mousePressed(function(){
+        saveRegressionButton = createButton("save");
+        saveRegressionButton.mousePressed(function(){
             console.log(regression.save());
         });
 
-        loadButton = createButton("load");
-        loadButton.mousePressed(function(){
+        loadRegressionButton = createButton("load");
+        loadRegressionButton.mousePressed(function(){
             //regression.save();
             label = "model loading..."
-            mobilenet = ml5.featureExtractor("MobileNet", modelReady2Load );
-            classifier = mobilenet.classification( video, videoReady );
+            mobilenetExt = ml5.featureExtractor("MobileNet", modelExtReady );
+            regression = mobilenetExt.regression(video, videoReady);
+            regression.load("modelreg.json",function() {
+                console.log("loaded");
+                label = "loaded"
+                regression.predict(gotResultsReg)
+            })
         });
+
+        let divknn = document.createElement('div');
+        divknn.innerHTML = '<h3>Start KNN</h3>';
+        document.body.appendChild(divknn);
+
+        startKNNButton = createButton("start knn");
+        startKNNButton.mousePressed(function(){
+            label = "Start KNN";
+            features = ml5.featureExtractor("MobileNet", modelExtReady);
+            knn = ml5.KNNClassifier();
+        });
+
+        inferKNNButton = createButton("infer");
+        inferKNNButton.mousePressed(function(){
+            let logits = features.infer(video, videoReady);
+            //console.log(logits.dataSync());
+            console.log("infer");
+            knn.addExample(logits, "left")
+        });
+
+        infer2KNNButton = createButton("infer2");
+        infer2KNNButton.mousePressed(function(){
+            let logits = features.infer(video, videoReady);
+            console.log("infer2");
+            knn.addExample(logits, "right")
+        });
+
+        classifyKNNButton = createButton("classify");
+        classifyKNNButton.mousePressed(function(){
+            let nn = knn.getNumLabels();
+            console.log("NumLabels:",nn);
+            if (nn>0) {
+                goClassifyKnn();
+            }
+        });
+
+        saveKNNButton = createButton("save");
+        saveKNNButton.mousePressed(function(){
+            console.log(knn.save('modelknn.json'));
+        });
+
+        loadKNNButton = createButton("load");
+        loadKNNButton.mousePressed(function(){
+            console.log("Load");
+            label = "Loading KNN Model";
+            features = ml5.featureExtractor("MobileNet", modelExtReady);
+            knn = ml5.KNNClassifier();
+            knn.load("modelknn.json", function() {
+                console.log("loaded");
+                label = "loaded";
+                let nn = knn.getNumLabels();
+                console.log("NumLabels:",nn);
+                //goClassifyKnn();
+            })
+        });
+
       }
 
       function draw(){
           background(0);
 
           image(video,0,0,width,height-30);
+          //image( pinguino, 0, 0, width, height)
 
           fill(255);
           textSize(25);
           text(label,10,height-10);
 
-        //background(0);
-        //image( pinguino, 0, 0, width, height)
       }
     </script>
   </body>
